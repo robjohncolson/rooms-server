@@ -24,6 +24,12 @@ const io = new Server(httpServer, {
 // Store connected users with timestamps
 const users = new Map();
 
+// Log current user count
+const logUserCount = () => {
+  console.log(`Current user count: ${users.size}`);
+  console.log('Active users:', Array.from(users.values()).map(u => u.user.name));
+};
+
 // Clean up disconnected users periodically
 setInterval(() => {
   const now = Date.now();
@@ -32,6 +38,7 @@ setInterval(() => {
       console.log('Cleaning up inactive user:', socketId);
       users.delete(socketId);
       io.emit('user-left', socketId);
+      logUserCount();
     }
   }
 }, 30000);
@@ -47,18 +54,19 @@ io.on('connection', (socket) => {
     io.emit('user-left', socket.id);
   }
   
-  // Generate username and initial color with some default color
+  // Generate username for the new user
   const username = generateUsername();
   const userData = {
     user: {
       id: socket.id,
-      name: username,
-      color: { c: 50, m: 50, y: 50, k: 0 }
+      name: username
     },
     lastSeen: Date.now()
   };
   
   users.set(socket.id, userData);
+  console.log('New user connected:', username);
+  logUserCount();
   
   // Send initial user data
   socket.emit('init', {
@@ -76,27 +84,6 @@ io.on('connection', (socket) => {
     }
   };
 
-  // Handle color changes
-  socket.on('color-change', (color) => {
-    console.log('Color change:', socket.id, color);
-    updateLastSeen();
-    if (users.has(socket.id)) {
-      const userData = users.get(socket.id);
-      userData.user.color = color;
-      users.set(socket.id, userData);
-      io.emit('user-updated', userData.user);
-    }
-  });
-
-  // Handle flash events
-  socket.on('flash', (userId) => {
-    console.log('Flash event:', userId);
-    updateLastSeen();
-    if (users.has(userId)) {
-      io.emit('user-flash', userId);
-    }
-  });
-
   // Handle pings to keep connection alive
   socket.on('ping', () => {
     updateLastSeen();
@@ -108,6 +95,7 @@ io.on('connection', (socket) => {
     console.log('Disconnection:', socket.id);
     users.delete(socket.id);
     io.emit('user-left', socket.id);
+    logUserCount();
   });
 });
 
