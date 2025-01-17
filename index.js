@@ -21,12 +21,12 @@ const io = new Server(httpServer, {
 const users = new Map();
 
 io.on('connection', (socket) => {
-  // Generate username and initial color
+  // Generate username and initial color with some default color
   const username = generateUsername();
   const user = {
     id: socket.id,
     name: username,
-    color: { c: 0, m: 0, y: 0, k: 0 }
+    color: { c: 50, m: 50, y: 50, k: 0 } // Start with a visible color
   };
   
   users.set(socket.id, user);
@@ -46,13 +46,15 @@ io.on('connection', (socket) => {
       const user = users.get(socket.id);
       user.color = color;
       users.set(socket.id, user);
-      socket.broadcast.emit('user-updated', user);
+      io.emit('user-updated', user); // Broadcast to everyone including sender
     }
   });
 
-  // Handle flash events
+  // Handle flash events - now flashing other users
   socket.on('flash', (userId) => {
-    io.emit('user-flash', userId);
+    if (users.has(userId)) {
+      io.emit('user-flash', userId);
+    }
   });
 
   // Handle disconnection
