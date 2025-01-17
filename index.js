@@ -21,8 +21,9 @@ const io = new Server(httpServer, {
   transports: ['websocket', 'polling']
 });
 
-// Store connected users with timestamps
+// Store connected users with timestamps and scores
 const users = new Map();
+const scores = new Map();
 
 // Log current user count
 const logUserCount = () => {
@@ -37,6 +38,7 @@ setInterval(() => {
     if (now - userData.lastSeen > 60000) { // Remove if not seen for 1 minute
       console.log('Cleaning up inactive user:', socketId);
       users.delete(socketId);
+      scores.delete(socketId);
       io.emit('user-left', socketId);
       logUserCount();
     }
@@ -51,6 +53,7 @@ io.on('connection', (socket) => {
     const oldUser = users.get(socket.id);
     console.log('Cleaning up existing user:', socket.id);
     users.delete(socket.id);
+    scores.delete(socket.id);
     io.emit('user-left', socket.id);
   }
   
@@ -65,6 +68,7 @@ io.on('connection', (socket) => {
   };
   
   users.set(socket.id, userData);
+  scores.set(socket.id, []);
   console.log('New user connected:', username);
   logUserCount();
   
@@ -84,6 +88,27 @@ io.on('connection', (socket) => {
     }
   };
 
+  // Handle score updates
+  socket.on('score-update', ({ userId, accuracy }) => {
+    console.log('Score update:', userId, accuracy);
+    updateLastSeen();
+    
+    if (scores.has(userId)) {
+      const userScores = scores.get(userId);
+      if (userScores.length < 3) { // Only allow 3 attempts
+        userScores.push(accuracy);
+        scores.set(userId, userScores);
+        io.emit('score-update', { userId, accuracy });
+        
+        // Check if this user has completed their attempts
+        if (userScores.length === 3) {
+          const avgScore = userScores.reduce((a, b) => a + b, 0) / userScores.length;
+          console.log(`User ${userId} completed game with average score: ${avgScore}`);
+        }
+      }
+    }
+  });
+
   // Handle pings to keep connection alive
   socket.on('ping', () => {
     updateLastSeen();
@@ -94,6 +119,7 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     console.log('Disconnection:', socket.id);
     users.delete(socket.id);
+    scores.delete(socket.id);
     io.emit('user-left', socket.id);
     logUserCount();
   });
