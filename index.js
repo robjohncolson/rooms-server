@@ -5,13 +5,18 @@ import cors from 'cors';
 import { generateUsername } from './utils/nameGenerator.js';
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST'],
+  credentials: true
+}));
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: '*',
     methods: ['GET', 'POST'],
+    credentials: true,
     transports: ['websocket', 'polling']
   },
   allowEIO3: true
@@ -21,6 +26,8 @@ const io = new Server(httpServer, {
 const users = new Map();
 
 io.on('connection', (socket) => {
+  console.log('New connection:', socket.id);
+  
   // Generate username and initial color with some default color
   const username = generateUsername();
   const user = {
@@ -42,6 +49,7 @@ io.on('connection', (socket) => {
 
   // Handle color changes
   socket.on('color-change', (color) => {
+    console.log('Color change:', socket.id, color);
     if (users.has(socket.id)) {
       const user = users.get(socket.id);
       user.color = color;
@@ -52,6 +60,7 @@ io.on('connection', (socket) => {
 
   // Handle flash events - now flashing other users
   socket.on('flash', (userId) => {
+    console.log('Flash event:', userId);
     if (users.has(userId)) {
       io.emit('user-flash', userId);
     }
@@ -59,6 +68,7 @@ io.on('connection', (socket) => {
 
   // Handle disconnection
   socket.on('disconnect', () => {
+    console.log('Disconnection:', socket.id);
     users.delete(socket.id);
     io.emit('user-left', socket.id);
   });
